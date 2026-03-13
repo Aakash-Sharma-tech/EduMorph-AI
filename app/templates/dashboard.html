@@ -1,0 +1,495 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Top Header Section -->
+<div class="flex-grow flex flex-col p-4 sm:p-8 relative z-10 w-full" id="dashboard-app">
+    <div class="max-w-7xl mx-auto w-full">
+        <!-- Top Metrics Area -->
+        <header class="mb-8 mt-4 md:flex md:items-center md:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Student Dashboard</h1>
+                <p class="text-gray-400 mt-2">Track your progress, take quizzes, and follow your personalized study plan.</p>
+            </div>
+            
+            <!-- Global Leaderboard Widget -->
+            <div v-if="leaderboardData" class="mt-4 md:mt-0 glass-card px-5 py-3 rounded-full flex gap-4 text-sm font-medium items-center shadow-lg border-t border-indigo-500/30 cursor-pointer hover:bg-white/10 transition" @click="showLeaderboardModal = true">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🏆</span> 
+                    <span class="text-white">Rank:</span>
+                    <span v-if="leaderboardData.current_user_rank" class="text-emerald-400 font-bold">
+                        [[ leaderboardData.current_user_rank.rank ]]
+                    </span>
+                    <span v-else class="text-gray-400 italic text-xs">Unranked</span>
+                    <span class="text-gray-500 text-xs ml-1 font-normal"> / [[ leaderboardData.total_ranked_students ]] stds</span>
+                </div>
+                <div class="w-px h-5 bg-white/20"></div>
+                <div class="text-indigo-300 text-xs hover:text-indigo-200">View Leaderboard &rarr;</div>
+            </div>
+        </header>
+
+        <!-- Gamification Overview -->
+        <div v-if="gamification" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Streaks -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10 flex flex-col items-center justify-center text-center">
+                <div class="text-4xl mb-2 animate-pulse">🔥</div>
+                <h3 class="text-3xl font-bold text-emerald-400 mb-1">[[ gamification.current_streak ]] <span class="text-sm font-normal text-gray-400">Day Streak</span></h3>
+                <p class="text-xs text-gray-300">Longest Streak: <span class="font-bold text-white">[[ gamification.longest_streak ]]</span></p>
+                <div v-if="gamification.next_milestone" class="mt-3 w-full max-w-[200px] bg-white/5 rounded-full h-1.5 overflow-hidden">
+                    <div class="bg-gradient-to-r from-emerald-500 to-indigo-500 h-full" :style="'width: ' + ((gamification.current_streak / gamification.next_milestone)*100) + '%'"></div>
+                </div>
+                <p v-if="gamification.next_milestone" class="text-[10px] text-gray-400 mt-1">Next milestone: [[ gamification.next_milestone ]] days</p>
+            </div>
+            
+            <!-- AI Motivation -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10 flex flex-col justify-center">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="text-2xl bg-white/10 p-1.5 rounded-full border border-white/20">🤖</span>
+                    <h3 class="text-sm font-bold text-white">Coach EduMorph says:</h3>
+                </div>
+                <p class="text-sm text-gray-300 italic">"[[ gamification.motivation_message ]]"</p>
+                <a href="/classroom" class="mt-4 text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors w-fit">
+                    Study Now &rarr;
+                </a>
+            </div>
+
+            <!-- Badges -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10 flex flex-col">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-white">Recent Achievements</h3>
+                    <span class="text-xs text-indigo-300 font-semibold">[[ gamification.badges.length ]] Total</span>
+                </div>
+                <div v-if="gamification.badges.length === 0" class="flex-grow flex items-center justify-center text-center text-xs text-gray-500">
+                    Complete learning activities to earn your first badge!
+                </div>
+                <div v-else class="flex-grow overflow-y-auto pr-2 grid grid-cols-2 gap-2 h-24 content-start">
+                    <div v-for="badge in gamification.badges.slice(0, 4)" :key="badge.name" 
+                         class="bg-white/5 border border-white/10 rounded-lg p-2 flex items-center gap-2 group relative">
+                        <span class="text-xl">[[ badge.icon ]]</span>
+                        <div class="truncate">
+                            <p class="text-[10px] font-bold text-white leading-tight truncate">[[ badge.name ]]</p>
+                            <p class="text-[9px] text-gray-400 truncate hidden xl:block">[[ badge.category ]]</p>
+                        </div>
+                        
+                        <!-- Tooltip -->
+                        <div class="absolute inset-x-0 bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-[10px] rounded p-2 z-50 border border-white/20 shadow-xl pointer-events-none">
+                            <p class="font-bold text-emerald-400 mb-1">[[ badge.name ]]</p>
+                            <p class="mb-1 leading-snug">[[ badge.description ]]</p>
+                            <p class="text-[8px] text-gray-400">Earned: [[ badge.date_earned ]]</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics + Saved Messages -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Charts -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10 h-80 flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-white">Mastery Overview</h3>
+                    <span v-if="loading" class="text-xs text-gray-400">Loading...</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow">
+                    <div class="relative">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                    <div class="relative">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Saved Messages -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10 h-80 flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-white">Starred Explanations</h3>
+                    <p class="text-xs text-gray-400">Pin your best AI answers here.</p>
+                </div>
+                <div class="flex-grow overflow-y-auto pr-2 space-y-3">
+                    <div v-for="msg in savedMessages" :key="msg.id" class="rounded-xl bg-white/5 border border-white/10 p-3">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[10px] text-gray-400">[[ msg.timestamp ]]</span>
+                            <button @click="unstarSavedMessage(msg)"
+                                    class="text-[10px] px-2 py-1 rounded-full bg-white/5 hover:bg-red-600/30 text-gray-300 hover:text-red-200 border border-white/10 flex items-center gap-1">
+                                <span>Remove</span>
+                            </button>
+                        </div>
+                        <div class="prose prose-invert prose-xs max-w-none" v-html="formatMessage(msg.content)"></div>
+                    </div>
+                    <div v-if="savedMessages.length === 0" class="text-xs text-gray-500 text-center py-6">
+                        You haven't starred any AI explanations yet. In the classroom, click the star icon to pin helpful answers.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quizzes + Results + Study Plan -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-10">
+            <!-- Give Test + Available Quizzes -->
+            <div class="space-y-4 xl:col-span-1">
+                <div class="glass-card rounded-2xl p-6 border-t border-white/10">
+                    <h3 class="text-lg font-semibold text-white mb-3">Give Test (Quiz Code)</h3>
+                    <p class="text-xs text-gray-400 mb-3">
+                        Enter the 8-digit quiz code shared by your teacher to start a timed test.
+                    </p>
+                    <form @submit.prevent="lookupQuizByCode" class="flex gap-2 items-center">
+                        <input v-model="quizCode" maxlength="8" placeholder="e.g. 48201937"
+                               class="flex-1 px-3 py-2 rounded-md bg-white/5 border border-white/10 text-sm text-white tracking-[0.2em] font-mono placeholder-gray-500 focus:border-emerald-500 focus:ring-emerald-500"/>
+                        <button type="submit"
+                                :disabled="lookingUpQuiz"
+                                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-2 disabled:opacity-50">
+                            <span v-if="lookingUpQuiz" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                            Start
+                        </button>
+                    </form>
+                    <p v-if="quizLookupError" class="text-xs text-red-400 mt-2">
+                        [[ quizLookupError ]]
+                    </p>
+                    <p class="text-[11px] text-gray-500 mt-3">
+                        Your teacher can also deploy "class-wide" quizzes which show up automatically below.
+                    </p>
+                </div>
+
+                <!-- <div class="glass-card rounded-2xl p-6 border-t border-white/10">
+                    <h3 class="text-lg font-semibold text-white mb-3">Available Class Quizzes</h3>
+                    <div class="space-y-3 max-h-72 overflow-y-auto pr-2">
+                        <div v-for="quiz in availableQuizzes" :key="quiz.id" class="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-white">[[ quiz.title ]]</p>
+                                <p class="text-[11px] text-gray-400">[[ quiz.questions.length ]] questions · [[ quiz.timer_minutes ]] mins</p>
+                            </div>
+                            <button @click="startQuiz(quiz)"
+                                    class="px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white">
+                                Start
+                            </button>
+                        </div>
+                        <div v-if="availableQuizzes.length === 0" class="text-xs text-gray-500">
+                            No pending class quizzes right now. Check back later or use a quiz code from your teacher.
+                        </div>
+                    </div>
+                </div> -->
+            </div>
+
+            <!-- Results -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10 xl:col-span-1 flex flex-col">
+                <h3 class="text-lg font-semibold text-white mb-3">Recent Results & Feedback</h3>
+                <div class="flex-grow overflow-y-auto pr-2 space-y-3">
+                    <div v-for="res in quizResults" :key="res.id" class="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div class="flex items-start justify-between mb-1">
+                            <div>
+                                <p class="text-sm font-semibold text-white">[[ res.quiz_title ]]</p>
+                                <p class="text-[11px] text-gray-400">Attempted [[ res.submitted_at ]]</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-xs font-semibold" :class="res.percentage >= 70 ? 'text-emerald-400' : 'text-red-400'">
+                                    [[ res.score ]] / [[ res.total ]] ( [[ res.percentage ]]% )
+                                </p>
+                                <p class="text-[11px] text-gray-400">
+                                    [[ res.time_taken_seconds ? (res.time_taken_seconds + ' sec') : 'Time N/A' ]]
+                                </p>
+                            </div>
+                        </div>
+                        <p v-if="res.teacher_feedback" class="text-xs text-gray-300 mt-1 italic">
+                            Teacher: "[[ res.teacher_feedback ]]"
+                        </p>
+                    </div>
+                    <div v-if="quizResults.length === 0" class="text-xs text-gray-500 text-center py-4">
+                        You haven’t completed any quizzes yet. Once you submit a quiz, your marks and teacher feedback will appear here.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personalized Study Plan -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10 xl:col-span-1 flex flex-col h-96">
+                <h3 class="text-lg font-semibold text-white mb-3">Personalized Study Plan</h3>
+                <p class="text-xs text-gray-400 mb-3">
+                    Based on your quiz performance and weak topics, here are your current focus areas and recommended resources.
+                </p>
+                <div class="flex-grow overflow-y-auto pr-2 space-y-4">
+                    <div v-for="plan in studyPlans" :key="plan.id" class="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <p class="text-[11px] text-gray-400 mb-1">Generated [[ plan.created_at ]]</p>
+                        <div v-for="rec in plan.recommendations" :key="rec.topic + rec.weak_reason" class="mb-3 last:mb-0">
+                            <p class="text-sm font-semibold text-emerald-300">[[ rec.topic ]]</p>
+                            <p class="text-xs text-gray-300 mb-1">[[ rec.weak_reason ]]</p>
+                            <div v-if="rec.study_topics && rec.study_topics.length" class="mb-1">
+                                <p class="text-[11px] text-gray-400 font-semibold">Study:</p>
+                                <ul class="list-disc list-inside text-[11px] text-gray-300">
+                                    <li v-for="t in rec.study_topics" :key="t">[[ t ]]</li>
+                                </ul>
+                            </div>
+                            <div v-if="rec.resources && rec.resources.length" class="mb-1">
+                                <p class="text-[11px] text-gray-400 font-semibold">Resources:</p>
+                                <ul class="list-disc list-inside text-[11px] text-gray-300">
+                                    <li v-for="r in rec.resources" :key="r">[[ r ]]</li>
+                                </ul>
+                            </div>
+                            <div v-if="rec.practice_questions && rec.practice_questions.length">
+                                <p class="text-[11px] text-gray-400 font-semibold">Practice:</p>
+                                <ul class="list-disc list-inside text-[11px] text-gray-300">
+                                    <li v-for="q in rec.practice_questions" :key="q">[[ q ]]</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="studyPlans.length === 0" class="text-xs text-gray-500">
+                        Once you complete quizzes, an AI-powered study plan will be generated here highlighting weak topics and suggested practice.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Report -->
+        <div class="glass-card rounded-2xl p-6 border-t border-white/10 mt-6" v-if="performance">
+            <div class="flex items-center justify-between mb-3">
+                <div>
+                    <h3 class="text-lg font-semibold text-white">Performance Report</h3>
+                    <p class="text-xs text-gray-400">
+                        Snapshot of your recent quizzes and topic-wise strengths/weaknesses.
+                    </p>
+                </div>
+                <a href="{{ url_for('analyzer.index') }}"
+                   class="text-[11px] px-3 py-1.5 rounded-full bg-white/10 hover:bg-indigo-600 text-gray-100 border border-white/20">
+                    View Detailed Report
+                </a>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-[11px] text-gray-300">
+                <!-- Recent Scores -->
+                <div>
+                    <p class="font-semibold text-gray-200 mb-1">Recent Scores</p>
+                    <p v-if="performance.recent_scores.length === 0" class="text-gray-500">
+                        No quiz attempts yet.
+                    </p>
+                    <ul v-else class="space-y-1">
+                        <li v-for="rs in performance.recent_scores" :key="rs.label + rs.timestamp" class="flex justify-between">
+                            <span class="truncate max-w-[60%]">
+                                [[ rs.label ]]
+                            </span>
+                            <span :class="rs.percentage >= 70 ? 'text-emerald-300' : 'text-red-300'">
+                                [[ rs.score ]] / [[ rs.total ]] ( [[ rs.percentage ]]% )
+                            </span>
+                        </li>
+                    </ul>
+                    <p class="mt-2 text-[10px] text-gray-500">
+                        Total quizzes attempted: <span class="text-emerald-300 font-semibold">[[ performance.total_quizzes ]]</span>
+                    </p>
+                </div>
+
+                <!-- Topic-wise Accuracy -->
+                <div>
+                    <p class="font-semibold text-gray-200 mb-1">Topic-wise Accuracy</p>
+                    <p v-if="performance.topic_accuracy.length === 0" class="text-gray-500">
+                        Attempt quizzes to see topic breakdown.
+                    </p>
+                    <div v-else class="flex flex-wrap gap-1">
+                        <div v-for="ta in performance.topic_accuracy" :key="ta.topic"
+                             class="px-2 py-1 rounded-full border border-white/15 text-[10px]"
+                             :class="ta.accuracy_pct >= 70 ? 'bg-emerald-500/10 text-emerald-200' : 'bg-red-500/10 text-red-200'">
+                            [[ ta.topic ]]: [[ ta.accuracy_pct ]]%
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weak Topics & Trend -->
+                <div>
+                    <p class="font-semibold text-gray-200 mb-1">Weak Topics</p>
+                    <p v-if="performance.weak_topics.length === 0" class="text-gray-500 mb-2">
+                        No clear weak topics yet — great job!
+                    </p>
+                    <ul v-else class="space-y-1 mb-3">
+                        <li v-for="wt in performance.weak_topics" :key="wt.topic">
+                            [[ wt.topic ]] — <span class="text-red-300">[[ wt.accuracy_pct ]]% accuracy</span>
+                        </li>
+                    </ul>
+
+                    <p class="font-semibold text-gray-200 mb-1">Improvement Trend</p>
+                    <p v-if="performance.trend.length === 0" class="text-gray-500">
+                        Once you take a few quizzes, your score trend will appear here.
+                    </p>
+                    <p v-else class="text-[10px] text-gray-300">
+                        [[ performance.trend.map(t => t.percentage).join(' → ') ]] %
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Modal -->
+        <div v-if="showLeaderboardModal && leaderboardData" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[200]">
+            <div class="glass-card rounded-3xl p-6 lg:p-8 max-w-2xl w-full border-t border-indigo-500 shadow-2xl relative max-h-[85vh] flex flex-col">
+                <button @click="showLeaderboardModal = false" class="absolute top-4 right-4 text-gray-400 hover:text-white transition w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10">
+                    ✕
+                </button>
+                
+                <h3 class="text-2xl font-bold text-white mb-2 flex items-center gap-3">
+                    <span class="text-3xl">🏆</span> Global Leaderboard
+                </h3>
+                <p class="text-xs text-gray-400 mb-6">Top performing students ranked by their average test scores across the platform.</p>
+                
+                <div class="flex-grow overflow-y-auto pr-2 space-y-2">
+                    <!-- Top 10 List -->
+                    <div v-for="(student, index) in leaderboardData.top_10" :key="index" 
+                         class="flex items-center justify-between p-3 rounded-xl border transition-all"
+                         :class="student.username === '{{ current_user.username }}' ? 'bg-indigo-600/20 border-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)]' : 'bg-white/5 border-white/10'">
+                        
+                        <div class="flex items-center gap-4">
+                            <!-- Medal or Number -->
+                            <div class="w-8 flex justify-center text-xl font-bold">
+                                <span v-if="student.rank === 1">🥇</span>
+                                <span v-else-if="student.rank === 2">🥈</span>
+                                <span v-else-if="student.rank === 3">🥉</span>
+                                <span v-else class="text-gray-500 text-sm">[[ student.rank ]]</span>
+                            </div>
+                            
+                            <!-- Name -->
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-200 flex items-center gap-2">
+                                    [[ student.username ]]
+                                    <span v-if="student.username === '{{ current_user.username }}'" class="text-[9px] bg-indigo-500 text-white px-1.5 py-0.5 rounded uppercase tracking-wider">You</span>
+                                </h4>
+                                <p class="text-[10px] text-gray-400">[[ student.total_tests ]] tests taken</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Score -->
+                        <div class="text-right">
+                            <span class="text-emerald-400 font-bold text-lg">[[ student.average_score ]]%</span>
+                            <p class="text-[9px] text-gray-500 uppercase">Avg Score</p>
+                        </div>
+                    </div>
+
+                    <!-- Current User Placed at Bottom (if not in top 10) -->
+                    <div v-if="leaderboardData.current_user_rank && !leaderboardData.top_10.some(s => s.username === '{{ current_user.username }}')" 
+                         class="mt-6 pt-4 border-t border-white/10">
+                        <p class="text-xs text-gray-500 mb-2 font-semibold uppercase tracking-wider text-center">Your Ranking</p>
+                        <div class="flex items-center justify-between p-3 rounded-xl bg-indigo-600/20 border border-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)]">
+                            <div class="flex items-center gap-4">
+                                <div class="w-8 flex justify-center text-sm font-bold text-gray-400">
+                                    [[ leaderboardData.current_user_rank.rank ]]
+                                </div>
+                                <div>
+                                    <h4 class="text-sm font-bold text-gray-200 flex items-center gap-2">
+                                        [[ leaderboardData.current_user_rank.username ]]
+                                        <span class="text-[9px] bg-indigo-500 text-white px-1.5 py-0.5 rounded uppercase tracking-wider">You</span>
+                                    </h4>
+                                    <p class="text-[10px] text-gray-400">[[ leaderboardData.current_user_rank.total_tests ]] tests taken</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-emerald-400 font-bold text-lg">[[ leaderboardData.current_user_rank.average_score ]]%</span>
+                                <p class="text-[9px] text-gray-500 uppercase">Avg Score</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Quiz Gateway -->
+        <div v-if="pendingQuiz" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div class="glass-card rounded-2xl p-6 max-w-md w-full border-t border-emerald-500 text-center">
+                <h3 class="text-xl font-bold text-white mb-2">Proctored Quiz Integration</h3>
+                <p class="text-sm text-gray-300 mb-6">
+                    You are about to enter a secure, proctored environment for <strong>[[ pendingQuiz.title ]]</strong>.<br><br>
+                    Please grant webcam permissions and do not switch tabs or exit fullscreen mode.
+                </p>
+                <div class="flex gap-4 justify-center">
+                    <button @click="pendingQuiz = null; lookingUpQuiz = false;" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold transition">Cancel</button>
+                    <button @click="confirmStartQuiz" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-2 transition">
+                        Start Proctored Test
+                    </button>
+                </div>
+            </div>
+        </div>
+
+         <!-- Quiz Modal (Proctored) -->
+        <div v-if="activeQuiz" class="fixed inset-0 bg-black/90 backdrop-blur-md flex flex-col md:flex-row z-[100]" id="proctored-quiz-container">
+            <!-- Sidebar: Webcam & Warnings (Desktop) -->
+            <div class="md:w-64 bg-gray-900 border-r border-white/10 p-4 flex flex-col gap-4 order-2 md:order-1 h-fit md:h-full">
+                <!-- Webcam Feed -->
+                <div class="relative rounded-xl overflow-hidden bg-black border-2 border-white/5 aspect-video w-full">
+                    <video id="webcam" autoplay playsinline class="w-full h-full object-cover transform -scale-x-100"></video>
+                    
+                    <div class="absolute bottom-2 left-2 right-2 text-center pointer-events-none">
+                         <span class="bg-red-500/80 text-white text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 backdrop-blur-sm shadow-lg whitespace-nowrap animate-pulse">
+                            <span class="w-1.5 h-1.5 bg-white rounded-full"></span> Live Proctoring
+                        </span>
+                    </div>
+
+                    <!-- Face Warning Overlay -->
+                    <div v-if="proctorWarning" class="absolute inset-0 bg-red-900/80 backdrop-blur-sm flex flex-col items-center justify-center p-3 text-center">
+                        <span class="text-3xl mb-1">⚠️</span>
+                        <p class="text-[10px] font-bold text-white leading-tight">[[ proctorWarning ]]</p>
+                    </div>
+                </div>
+
+                <!-- Violation Status -->
+                <div class="glass-card rounded-xl p-3 border border-red-500/30 bg-red-500/5">
+                    <h4 class="text-[11px] font-bold text-red-400 mb-2 uppercase tracking-wide flex justify-between items-center">
+                        Warnings
+                        <span class="bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded text-[10px]">[[ violationCount ]] / 3</span>
+                    </h4>
+                    <div class="flex gap-1">
+                        <div v-for="i in 3" :key="i" class="h-1 flex-1 rounded-full bg-white/10 relative overflow-hidden">
+                            <div v-if="i <= violationCount" class="absolute inset-0 bg-red-500"></div>
+                        </div>
+                    </div>
+                    <p class="text-[9px] text-gray-400 mt-2 leading-tight">
+                        Exceeding 3 warnings will automatically lock and submit your test.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Main Quiz Area -->
+            <div class="flex-1 flex flex-col h-[60vh] md:h-full overflow-hidden order-1 md:order-2">
+                <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-gray-900">
+                    <div>
+                        <h3 class="text-lg font-bold text-white">[[ activeQuiz.title ]]</h3>
+                        <p class="text-xs text-gray-400">
+                            [[ activeQuiz.questions.length ]] questions · Time remaining: 
+                            <span class="text-emerald-400 font-mono font-bold ml-1">[[ formatTime(timeRemaining) ]]</span>
+                        </p>
+                    </div>
+                    <button @click="activeQuiz = null" class="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold">
+                        End Test
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto px-6 py-6 space-y-6 bg-gray-950">
+                    <div v-for="(q, idx) in activeQuiz.questions" :key="idx" class="p-5 rounded-2xl bg-white/5 border border-white/10">
+                        <p class="text-sm font-semibold text-white mb-3">
+                            <span class="text-emerald-400 mr-1">[[ idx + 1 ]].</span> [[ q.question ]]
+                        </p>
+                        <div class="space-y-2">
+                            <label v-for="(opt, oIdx) in q.options" :key="oIdx" class="flex items-center gap-3 p-3 rounded-xl bg-black/20 border border-white/5 hover:bg-white/5 cursor-pointer transition">
+                                <input type="radio"
+                                       class="w-4 h-4 text-emerald-500 bg-black border-white/20 focus:ring-emerald-500 focus:ring-offset-gray-900"
+                                       :name="'q-' + idx"
+                                       :value="oIdx"
+                                       v-model="quizAnswers[idx]">
+                                <span class="text-sm text-gray-200">[[ opt ]]</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 border-t border-white/10 flex items-center justify-between bg-gray-900">
+                    <p class="text-gray-400">
+                        When the timer hits zero, your quiz will auto-submit.
+                    </p>
+                    <button @click="submitQuiz"
+                            :disabled="submittingQuiz"
+                            class="px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-2 disabled:opacity-50">
+                        <span v-if="submittingQuiz" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        Submit Quiz
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js" crossorigin="anonymous"></script>
+<script src="{{ url_for('static', filename='js/app_dashboard.js') }}"></script>
+{% endblock %}

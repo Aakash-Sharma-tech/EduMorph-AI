@@ -1,0 +1,602 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex-grow flex flex-col p-4 sm:p-8 relative z-10" id="analyzer-app">
+    <div class="max-w-7xl w-full mx-auto">
+        <header class="mb-8 mt-4 text-center">
+            <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">Advanced Academic Analysis & Tools</h1>
+            <p class="text-gray-400 mt-2">Upload your past papers, syllabi, or notes for heavy-duty AI synthesis and generation.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Exam Analyzer Card -->
+            <div class="glass-card rounded-2xl p-6 transition hover:bg-white/10 flex flex-col">
+                <div class="text-4xl mb-4">📑</div>
+                <h3 class="text-xl font-bold mb-2 text-white">Exam Pattern Analyzer</h3>
+                <p class="text-gray-400 mb-6 text-sm flex-grow">Feed years of past technical papers. AI will find repeating patterns, topic weightage, and generated mock questions.</p>
+                
+                <input type="file" ref="examFiles" multiple accept=".pdf" class="hidden" @change="handleExamSelect">
+                <button @click="$refs.examFiles.click()" class="w-full py-3 mb-2 rounded-xl bg-gray-800 border border-gray-600 hover:bg-gray-700 text-white transition text-sm">
+                    Select Exam PDFs
+                </button>
+                <div v-if="examFileNames.length > 0" class="text-xs text-indigo-300 mb-4 max-h-16 overflow-y-auto">
+                    [[ examFileNames.join(', ') ]]
+                </div>
+                
+                <button @click="submitExams" :disabled="loadingExams || examFileNames.length === 0" class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-lg transition flex justify-center items-center gap-2 disabled:opacity-50">
+                    <span v-if="loadingExams" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    [[ loadingExams ? 'Analyzing Tokens...' : 'Analyze Exams' ]]
+                </button>
+            </div>
+
+            <!-- Syllabus Optimizer Card -->
+            <div class="glass-card rounded-2xl p-6 transition hover:bg-white/10 flex flex-col">
+                <div class="text-4xl mb-4">🔀</div>
+                <h3 class="text-xl font-bold mb-2 text-white">Dual-Syllabus Optimizer</h3>
+                <p class="text-gray-400 mb-6 text-sm flex-grow">Juggling concurrent degrees? Upload both syllabi. AI removes redundant overlapping concepts saving you effort.</p>
+                
+                <input type="file" ref="syllabusFiles" multiple accept=".pdf" class="hidden" @change="handleSyllabusSelect">
+                <button @click="$refs.syllabusFiles.click()" class="w-full py-3 mb-2 rounded-xl bg-gray-800 border border-gray-600 hover:bg-gray-700 text-white transition text-sm">
+                    Select Syllabus PDFs
+                </button>
+                <div v-if="syllabusFileNames.length > 0" class="text-xs text-purple-300 mb-4 max-h-16 overflow-y-auto">
+                    [[ syllabusFileNames.join(', ') ]]
+                </div>
+
+                <button @click="submitSyllabi" :disabled="loadingSyllabi || syllabusFileNames.length === 0" class="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-lg transition flex justify-center items-center gap-2 disabled:opacity-50">
+                    <span v-if="loadingSyllabi" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    [[ loadingSyllabi ? 'Optimizing Timeline...' : 'Optimize Master Path' ]]
+                </button>
+            </div>
+
+            <!-- Quiz Generator Card -->
+            <div class="glass-card rounded-2xl p-6 transition hover:bg-white/10 flex flex-col">
+                <div class="text-4xl mb-4">🧠</div>
+                <h3 class="text-xl font-bold mb-2 text-white">Self-Study Quiz Generator</h3>
+                <p class="text-gray-400 mb-4 text-sm">Generate a personal practice quiz from a topic or uploaded notes. Results are private to you.</p>
+
+                <!-- Mode Toggle -->
+                <div class="inline-flex mb-4 rounded-full bg-white/5 p-1 text-xs font-medium">
+                    <button type="button"
+                            @click="quizMode = 'topic'"
+                            :class="quizMode === 'topic' ? 'bg-green-500 text-white' : 'text-gray-300'"
+                            class="px-3 py-1 rounded-full transition">
+                        Topic → Quiz
+                    </button>
+                    <button type="button"
+                            @click="quizMode = 'pdf'"
+                            :class="quizMode === 'pdf' ? 'bg-green-500 text-white' : 'text-gray-300'"
+                            class="px-3 py-1 rounded-full transition">
+                        PDF → Quiz
+                    </button>
+                </div>
+
+                <!-- Topic Mode -->
+                <div v-if="quizMode === 'topic'" class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Topic</label>
+                    <input v-model="quizTopic"
+                           type="text"
+                           placeholder="e.g. Operating System – Deadlocks"
+                           class="w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:border-green-500 focus:ring-green-500 text-sm">
+                </div>
+
+                <!-- PDF Mode -->
+                <div v-else class="mb-4">
+                    <input type="file" ref="quizFiles" multiple accept=".pdf,.txt" class="hidden" @change="handleQuizSelect">
+                    <button @click="$refs.quizFiles.click()" class="w-full py-3 mb-2 rounded-xl bg-gray-800 border border-gray-600 hover:bg-gray-700 text-white transition text-sm">
+                        Select Notes Files (PDF / TXT)
+                    </button>
+                    <div v-if="quizFileNames.length > 0" class="text-xs text-green-300 mb-2 max-h-16 overflow-y-auto">
+                        [[ quizFileNames.join(', ') ]]
+                    </div>
+                </div>
+
+                <!-- Config -->
+                <div class="grid grid-cols-3 gap-3 mb-2 text-xs">
+                    <div>
+                        <label class="block text-gray-300 mb-1">Questions</label>
+                        <input v-model.number="quizNumQuestions" type="number" min="1" max="40"
+                               class="w-full px-2 py-1.5 rounded-md bg-white/5 border border-white/10 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 mb-1">Difficulty</label>
+                        <select v-model="quizDifficulty"
+                                class="w-full px-2 py-1.5 rounded-md bg-white/5 border border-white/10 text-white">
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 mb-1">Duration (mins)</label>
+                        <input v-model.number="quizDuration" type="number" min="1" max="120"
+                               class="w-full px-2 py-1.5 rounded-md bg-white/5 border border-white/10 text-white">
+                    </div>
+                </div>
+
+                <button @click="startSelfQuiz"
+                        :disabled="loadingQuiz || (quizMode === 'pdf' && quizFileNames.length === 0) || (quizMode === 'topic' && !quizTopic.trim())"
+                        class="w-full mt-1 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium shadow-lg transition flex justify-center items-center gap-2 disabled:opacity-50">
+                    <span v-if="loadingQuiz" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    [[ loadingQuiz ? 'Generating Quiz...' : 'Start Quiz' ]]
+                </button>
+            </div>
+            
+            <!-- PYQ Study Schedule Card -->
+            <div class="glass-card rounded-2xl p-6 transition hover:bg-white/10 flex flex-col">
+                <div class="text-4xl mb-4">📅</div>
+                <h3 class="text-xl font-bold mb-2 text-white">PYQ Study Schedule</h3>
+                <p class="text-gray-400 mb-4 text-sm flex-grow">Upload Previous Year Questions (Images/PDFs) and enter days until exam. AI extracts text and maps out a robust day-by-day plan focusing on high-weightage topics.</p>
+                
+                <input type="file" ref="pyqFiles" multiple accept=".pdf,image/*" class="hidden" @change="handlePyqSelect">
+                <button @click="$refs.pyqFiles.click()" class="w-full py-3 mb-2 rounded-xl bg-gray-800 border border-gray-600 hover:bg-gray-700 text-white transition text-sm">
+                    Select PYQ Files
+                </button>
+                <div v-if="pyqFileNames.length > 0" class="text-xs text-rose-300 mb-2 max-h-16 overflow-y-auto">
+                    [[ pyqFileNames.join(', ') ]]
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-300 mb-1">Days Until Exam</label>
+                    <input v-model.number="pyqDurationDays"
+                           type="number" min="1" max="90"
+                           placeholder="e.g. 15 or 20"
+                           class="w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:border-rose-500 focus:ring-rose-500 text-sm">
+                </div>
+                
+                <button @click="submitPyqSchedule" :disabled="loadingPyq || pyqFileNames.length === 0 || !pyqDurationDays" class="w-full mt-auto py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-medium shadow-lg transition flex justify-center items-center gap-2 disabled:opacity-50">
+                    <span v-if="loadingPyq" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    [[ loadingPyq ? 'Generating Schedule...' : 'Generate Schedule' ]]
+                </button>
+            </div>
+        </div>
+
+        <!-- Output Window -->
+        <div v-if="(analysisResult || errorMessage) && !activeQuiz" class="glass-card rounded-2xl p-6 border-t-4" :class="errorMessage ? 'border-red-500' : 'border-indigo-500'">
+            <h3 class="text-xl font-bold mb-4 text-white">[[ errorMessage ? 'Error' : 'AI Analysis Report' ]]</h3>
+            
+            <div v-if="errorMessage" class="text-red-400">
+                [[ errorMessage ]]
+            </div>
+            
+            <div v-if="analysisResult" class="prose prose-invert max-w-none text-gray-300 text-sm leading-relaxed" v-html="formattedResult">
+            </div>
+            
+            <button v-if="analysisResult || errorMessage" @click="clearResults" class="mt-6 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white text-sm transition transition">
+                Clear Results
+            </button>
+        </div>
+
+        <!-- Self-Study Quiz Panel -->
+        <div v-if="activeQuiz" class="glass-card rounded-2xl p-6 mt-6 border-t-4 border-green-500">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-white">Practice Quiz: [[ activeQuiz.titleLabel ]]</h3>
+                    <p class="text-xs text-gray-400">
+                        [[ activeQuiz.num_questions ]] questions · Time remaining:
+                        <span class="font-mono text-emerald-300">[[ formatTime(quizTimeRemaining) ]]</span>
+                    </p>
+                </div>
+                <button @click="cancelActiveQuiz"
+                        class="text-xs px-3 py-1.5 rounded-full bg-white/5 hover:bg-red-600/30 text-gray-300 hover:text-red-200 border border-white/10">
+                    Cancel
+                </button>
+            </div>
+
+            <div class="max-h-96 overflow-y-auto pr-2 space-y-3 mb-4">
+                <div v-for="(q, idx) in activeQuiz.questions" :key="idx"
+                     class="p-3 rounded-xl bg-white/5 border border-white/10">
+                    <p class="text-xs font-semibold text-white mb-1">
+                        Q[[ idx + 1 ]]: [[ q.question ]]
+                    </p>
+                    <p class="text-[10px] text-gray-400 mb-2">
+                        [[ q.topic || 'General' ]] · [[ (q.difficulty || activeQuiz.difficulty || 'medium') ]]
+                    </p>
+                    <div class="space-y-1">
+                        <label v-for="(opt, oIdx) in q.options" :key="oIdx"
+                               class="flex items-center gap-2 text-[11px] text-gray-200">
+                            <input type="radio"
+                                   class="text-emerald-500 focus:ring-emerald-500"
+                                   :name="'quiz-q-' + idx"
+                                   :value="oIdx"
+                                   v-model="quizAnswers[idx]">
+                            <span>[[ opt ]]</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <p class="text-[11px] text-gray-400">
+                    When the timer reaches zero, your answers will be auto-submitted.
+                </p>
+                <button @click="submitSelfQuiz"
+                        :disabled="submittingQuiz"
+                        class="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center gap-2 disabled:opacity-50">
+                    <span v-if="submittingQuiz" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Submit Quiz
+                </button>
+            </div>
+        </div>
+
+        <!-- Quiz Results -->
+        <div v-if="quizResult" class="glass-card rounded-2xl p-6 mt-6 border-t-4 border-emerald-500">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xl font-bold text-white">Quiz Results</h3>
+                <p class="text-sm text-emerald-300 font-semibold">
+                    Score: [[ quizResult.score ]] / [[ quizResult.total ]]
+                </p>
+            </div>
+            <p class="text-xs text-gray-400 mb-3">
+                Time taken: [[ quizResult.time_taken_seconds ]] seconds
+            </p>
+
+            <div v-if="quizResult.weak_topics && quizResult.weak_topics.length" class="mb-4">
+                <p class="text-xs text-gray-300 font-semibold mb-1">Weak Topics:</p>
+                <ul class="list-disc list-inside text-[11px] text-gray-300">
+                    <li v-for="wt in quizResult.weak_topics" :key="wt.topic">
+                        [[ wt.topic ]] — [[ wt.wrong ]] wrong out of [[ wt.total ]] attempts
+                    </li>
+                </ul>
+            </div>
+
+            <div class="max-h-80 overflow-y-auto pr-2 space-y-3">
+                <div v-for="qr in quizResult.questions" :key="qr.index"
+                     class="p-3 rounded-xl bg-white/5 border border-white/10">
+                    <p class="text-xs font-semibold mb-1"
+                       :class="qr.correct ? 'text-emerald-300' : 'text-red-300'">
+                        Q[[ qr.index + 1 ]]: [[ qr.question ]]
+                    </p>
+                    <p class="text-[10px] text-gray-400 mb-1">
+                        Your answer: <span :class="qr.correct ? 'text-emerald-300' : 'text-red-300'">
+                            [[ qr.chosen_option || 'Not answered' ]]
+                        </span>
+                        · Correct: <span class="text-emerald-300">[[ qr.correct_option || 'N/A' ]]</span>
+                    </p>
+                    <p v-if="qr.explanation" class="text-[11px] text-gray-300">
+                        Explanation: [[ qr.explanation ]]
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+const { createApp, ref, computed } = Vue;
+
+const AnalyzerApp = {
+    compilerOptions: { delimiters: ['[[', ']]'] },
+    setup() {
+        const examFiles = ref(null);
+        const syllabusFiles = ref(null);
+        const quizFiles = ref(null);
+        const pyqFiles = ref(null);
+        const examFileNames = ref([]);
+        const syllabusFileNames = ref([]);
+        const quizFileNames = ref([]);
+        const pyqFileNames = ref([]);
+        const pyqDurationDays = ref(15);
+        
+        const loadingExams = ref(false);
+        const loadingSyllabi = ref(false);
+        const loadingQuiz = ref(false);
+        const loadingPyq = ref(false);
+        const analysisResult = ref('');
+        const errorMessage = ref('');
+
+        // Self-study quiz state
+        const quizMode = ref('pdf'); // 'pdf' or 'topic'
+        const quizTopic = ref('');
+        const quizNumQuestions = ref(5);
+        const quizDifficulty = ref('medium');
+        const quizDuration = ref(10);
+        const activeQuiz = ref(null);
+        const quizAnswers = ref({});
+        const quizTimeRemaining = ref(0);
+        let quizTimer = null;
+        const submittingQuiz = ref(false);
+        const quizResult = ref(null);
+
+        const handleExamSelect = (event) => {
+            const files = event.target.files;
+            examFileNames.value = Array.from(files).map(f => f.name);
+        };
+        
+        const handleSyllabusSelect = (event) => {
+            const files = event.target.files;
+            syllabusFileNames.value = Array.from(files).map(f => f.name);
+        };
+
+        const handleQuizSelect = (event) => {
+            const files = event.target.files;
+            quizFileNames.value = Array.from(files).map(f => f.name);
+        };
+        
+        const handlePyqSelect = (event) => {
+            const files = event.target.files;
+            pyqFileNames.value = Array.from(files).map(f => f.name);
+        };
+
+        const submitExams = async () => {
+            const files = examFiles.value?.files;
+            if (!files || files.length === 0) return;
+            
+            const formData = new FormData();
+            for(let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+
+            loadingExams.value = true;
+            analysisResult.value = '';
+            errorMessage.value = '';
+
+            try {
+                const res = await axios.post('/api/analyze-exams', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                
+                if(res.data.success) {
+                    analysisResult.value = res.data.analysis || res.data.message; // fallback for mock
+                    if (res.data.gamification) {
+                        window.processGamificationResponse(res.data.gamification);
+                    }
+                } else {
+                    errorMessage.value = res.data.message;
+                }
+            } catch (err) {
+                errorMessage.value = "Failed to communicate with server.";
+                console.error(err);
+            } finally {
+                loadingExams.value = false;
+            }
+        };
+
+        const submitSyllabi = async () => {
+            const files = syllabusFiles.value?.files;
+            if (!files || files.length === 0) return;
+            
+            const formData = new FormData();
+            for(let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+
+            loadingSyllabi.value = true;
+            analysisResult.value = '';
+            errorMessage.value = '';
+
+            try {
+                const res = await axios.post('/api/optimize-syllabi', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                
+                if(res.data.success) {
+                    analysisResult.value = res.data.analysis || res.data.message;
+                } else {
+                    errorMessage.value = res.data.message;
+                }
+            } catch (err) {
+                errorMessage.value = "Failed to communicate with server.";
+                console.error(err);
+            } finally {
+                loadingSyllabi.value = false;
+            }
+        };
+
+        const submitQuiz = async () => {
+            // kept for backward compatibility if ever needed
+            return;
+        };
+        
+        const submitPyqSchedule = async () => {
+            const files = pyqFiles.value?.files;
+            if (!files || files.length === 0) return;
+            
+            const formData = new FormData();
+            for(let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            formData.append('duration', pyqDurationDays.value);
+
+            loadingPyq.value = true;
+            analysisResult.value = '';
+            errorMessage.value = '';
+
+            try {
+                const res = await axios.post('/api/generate-pyq-schedule', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                
+                if(res.data.success) {
+                    analysisResult.value = res.data.analysis || res.data.message;
+                } else {
+                    errorMessage.value = res.data.message;
+                }
+            } catch (err) {
+                errorMessage.value = "Failed to communicate with server.";
+                console.error(err);
+            } finally {
+                loadingPyq.value = false;
+            }
+        };
+
+        const startSelfQuiz = async () => {
+            quizResult.value = null;
+            activeQuiz.value = null;
+            analysisResult.value = '';
+            errorMessage.value = '';
+
+            loadingQuiz.value = true;
+
+            try {
+                let res;
+                if (quizMode.value === 'topic') {
+                    res = await axios.post('/api/generate-quiz', {
+                        mode: 'topic',
+                        topic: quizTopic.value,
+                        num_questions: quizNumQuestions.value,
+                        difficulty: quizDifficulty.value,
+                        duration_minutes: quizDuration.value
+                    });
+                } else {
+                    const files = quizFiles.value?.files;
+                    if (!files || files.length === 0) {
+                        loadingQuiz.value = false;
+                        return;
+                    }
+                    const formData = new FormData();
+                    for (let i = 0; i < files.length; i++) {
+                        formData.append('files', files[i]);
+                    }
+                    formData.append('mode', 'pdf');
+                    formData.append('topic', quizTopic.value || '');
+                    formData.append('num_questions', quizNumQuestions.value);
+                    formData.append('difficulty', quizDifficulty.value);
+                    formData.append('duration_minutes', quizDuration.value);
+
+                    res = await axios.post('/api/generate-quiz', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' }
+                    });
+                }
+
+                if (res.data && res.data.success) {
+                    const quiz = res.data.quiz;
+                    activeQuiz.value = {
+                        ...quiz,
+                        titleLabel: quiz.mode === 'topic'
+                            ? (quiz.topic || 'Topic Quiz')
+                            : (quiz.source_name || 'Notes Quiz')
+                    };
+                    quizAnswers.value = {};
+                    quizTimeRemaining.value = (quiz.duration_minutes || quizDuration.value || 10) * 60;
+
+                    if (quizTimer) clearInterval(quizTimer);
+                    quizTimer = setInterval(() => {
+                        quizTimeRemaining.value--;
+                        if (quizTimeRemaining.value <= 0) {
+                            clearInterval(quizTimer);
+                            submitSelfQuiz();
+                        }
+                    }, 1000);
+                } else {
+                    errorMessage.value = (res.data && res.data.message) || 'Failed to generate quiz.';
+                }
+            } catch (err) {
+                errorMessage.value = 'Failed to communicate with server.';
+                console.error(err);
+            } finally {
+                loadingQuiz.value = false;
+            }
+        };
+
+        const submitSelfQuiz = async () => {
+            if (!activeQuiz.value || submittingQuiz.value) return;
+            submittingQuiz.value = true;
+            if (quizTimer) clearInterval(quizTimer);
+
+            try {
+                const totalTime = (activeQuiz.value.duration_minutes || quizDuration.value || 10) * 60;
+                const timeTaken = Math.max(0, totalTime - quizTimeRemaining.value);
+                const payload = {
+                    quiz: activeQuiz.value,
+                    answers: quizAnswers.value,
+                    time_taken_seconds: timeTaken
+                };
+                const res = await axios.post('/api/analyzer-quiz-submit', payload);
+                if (res.data && res.data.success) {
+                    quizResult.value = {
+                        score: res.data.score,
+                        total: res.data.total,
+                        time_taken_seconds: res.data.time_taken_seconds,
+                        weak_topics: res.data.weak_topics || [],
+                        questions: res.data.questions || []
+                    };
+                    activeQuiz.value = null;
+                    if (res.data.gamification) {
+                        window.processGamificationResponse(res.data.gamification);
+                    }
+                } else {
+                    errorMessage.value = (res.data && res.data.message) || 'Failed to evaluate quiz.';
+                }
+            } catch (err) {
+                errorMessage.value = 'Failed to submit quiz.';
+                console.error(err);
+            } finally {
+                submittingQuiz.value = false;
+            }
+        };
+
+        const cancelActiveQuiz = () => {
+            if (quizTimer) clearInterval(quizTimer);
+            activeQuiz.value = null;
+            quizAnswers.value = {};
+        };
+
+        const formattedResult = computed(() => {
+            return window.marked ? marked.parse(analysisResult.value) : analysisResult.value;
+        });
+        
+        const clearResults = () => {
+             analysisResult.value = '';
+             errorMessage.value = '';
+        }
+
+        return {
+            examFiles,
+            syllabusFiles,
+            quizFiles,
+            pyqFiles,
+            examFileNames,
+            syllabusFileNames,
+            quizFileNames,
+            pyqFileNames,
+            pyqDurationDays,
+            handleExamSelect,
+            handleSyllabusSelect,
+            handleQuizSelect,
+            handlePyqSelect,
+            submitExams,
+            submitSyllabi,
+            submitQuiz,
+            submitPyqSchedule,
+            startSelfQuiz,
+            submitSelfQuiz,
+            cancelActiveQuiz,
+            loadingExams,
+            loadingSyllabi,
+            loadingQuiz,
+            loadingPyq,
+            analysisResult,
+            errorMessage,
+            formattedResult,
+            clearResults,
+            quizMode,
+            quizTopic,
+            quizNumQuestions,
+            quizDifficulty,
+            quizDuration,
+            activeQuiz,
+            quizAnswers,
+            quizTimeRemaining,
+            submittingQuiz,
+            quizResult,
+            formatTime: (seconds) => {
+                const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                return `${m}:${s}`;
+            }
+        }
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('analyzer-app')) {
+        createApp(AnalyzerApp).mount('#analyzer-app');
+    }
+});
+</script>
+{% endblock %}

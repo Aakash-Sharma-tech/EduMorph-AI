@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduMorph AI</title>
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <!-- Vue.js 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Axios CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Anime.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            900: '#312e81',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen font-sans antialiased overflow-x-hidden relative">
+    <!-- Navbar -->
+    <nav class="fixed top-0 w-full z-50 bg-gray-900/50 backdrop-blur-md border-b border-white/10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <a href="{{ url_for('landing.index') }}" class="flex-shrink-0">
+                        <span class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">EduMorph AI</span>
+                    </a>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        {% if current_user.is_authenticated %}
+                            {% if current_user.role == 'teacher' %}
+                                <a href="{{ url_for('teacher.dashboard') }}" class="hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium transition">Teacher Portal</a>
+                                <a href="{{ url_for('analyzer.index') }}" class="hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium transition">Analyze Tool</a>
+                            {% else %}
+                                <a href="{{ url_for('dashboard.index') }}" class="hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium transition">Dashboard</a>
+                                <a href="{{ url_for('dashboard.classroom') }}" class="hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium transition">AI Classroom</a>
+                                <a href="{{ url_for('analyzer.index') }}" class="hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium transition">Analyze</a>
+                                <a href="{{ url_for('api.sandbox') }}" class="hover:text-indigo-400 px-3 py-2 rounded-md text-sm font-medium transition">Books</a>
+                            {% endif %}
+                            <a href="{{ url_for('auth.logout') }}" class="text-gray-300 hover:text-white px-3 py-2 rounded-md text-sm font-medium transition border border-white/20 hover:bg-white/10">Logout</a>
+                        {% else %}
+                            <a href="{{ url_for('auth.login') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition shadow-lg shadow-indigo-500/30">Login / Sign Up</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="pt-16 min-h-screen flex flex-col relative z-10">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Three.js Background Canvas container -->
+    {% block background %}
+    <div id="canvas-container" class="fixed inset-0 z-0 pointer-events-none opacity-40"></div>
+    {% endblock %}
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Visualizer Logic -->
+    <script src="{{ url_for('static', filename='js/visualizer.js') }}"></script>
+    
+    <!-- Gamification Toast System -->
+    <div id="gamification-toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-3 pointer-events-none"></div>
+    <script>
+        window.addEventListener('ShowGamificationToast', (e) => {
+            const data = e.detail; // { icon, title, message }
+            const container = document.getElementById('gamification-toast-container');
+            if(!container) return;
+            
+            const toast = document.createElement('div');
+            toast.className = 'glass-card bg-gray-900/90 border border-emerald-500/30 rounded-2xl p-4 shadow-2xl flex items-center gap-4 text-white transform transition-all duration-500 translate-y-20 opacity-0 pointer-events-auto';
+            toast.style.width = '300px';
+            
+            toast.innerHTML = `
+                <div class="text-4xl filter drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] animate-pulse">${data.icon || '🏆'}</div>
+                <div>
+                    <h4 class="font-bold text-emerald-400 text-sm m-0 leading-tight">${data.title}</h4>
+                    <p class="text-xs text-gray-300 m-0 leading-snug mt-1">${data.message}</p>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation in
+            setTimeout(() => {
+                toast.classList.remove('translate-y-20', 'opacity-0');
+            }, 50);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-10');
+                setTimeout(() => toast.remove(), 500);
+            }, 5000);
+        });
+        
+        // Helper to process gamification object returned from API
+        window.processGamificationResponse = (gamificationObj) => {
+            if(!gamificationObj) return;
+            
+            // 1. Show Streak Milestones
+            if (gamificationObj.streak_message) {
+                window.dispatchEvent(new CustomEvent('ShowGamificationToast', {
+                    detail: {
+                        icon: '🔥',
+                        title: 'Streak Milestone!',
+                        message: gamificationObj.streak_message
+                    }
+                }));
+            }
+            
+            // 2. Show New Badges
+            if (gamificationObj.new_badges && gamificationObj.new_badges.length > 0) {
+                gamificationObj.new_badges.forEach((badge, index) => {
+                    setTimeout(() => {
+                        window.dispatchEvent(new CustomEvent('ShowGamificationToast', {
+                            detail: {
+                                icon: badge.icon,
+                                title: 'Badge Unlocked!',
+                                message: badge.name + ' - ' + badge.description
+                            }
+                        }));
+                    }, index * 1000 + (gamificationObj.streak_message ? 1000 : 0)); // Stagger popups if multiple
+                });
+            }
+        };
+    </script>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

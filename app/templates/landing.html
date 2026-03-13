@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex-grow flex items-center justify-center relative overflow-hidden">
+    <div class="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center hero-content">
+        <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 mt-10" id="hero-headline">
+            <span class="block">Learn beyond limits with</span>
+            <span
+                class="block bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400">Adaptive
+                AI Intelligence</span>
+        </h1>
+        <p class="mt-4 max-w-2xl mx-auto text-xl text-gray-300 mb-10 hero-subtitle">
+            EduMorph creates an immersive 3D learning environment where an advanced Socratic AI tutor adapts to your
+            unique pace and curriculum.
+        </p>
+        <div class="mt-8 flex justify-center gap-4 hero-buttons">
+            <a href="{{ url_for('auth.login') }}"
+                class="px-8 py-3 border border-transparent text-lg font-medium rounded-full text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-xl md:px-10 transition-all shadow-lg hover:shadow-indigo-500/50">
+                Start Learning Now
+            </a>
+            <a href="#features"
+                class="px-8 py-3 border border-gray-600 text-lg font-medium rounded-full text-gray-300 hover:text-white hover:bg-white/5 md:py-4 md:text-xl md:px-10 transition-all backdrop-blur-sm">
+                Explore Features
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div id="features" class="py-24 relative z-10 bg-gray-900/80 backdrop-blur-xl border-t border-white/10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+            <div
+                class="p-8 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-all transform hover:-translate-y-2">
+                <div class="text-4xl mb-4">🤖</div>
+                <h3 class="text-xl font-bold mb-2">Socratic AI Tutor</h3>
+                <p class="text-gray-400">Guiding you to the answer instead of giving it away, building real
+                    understanding.</p>
+            </div>
+            <div
+                class="p-8 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-all transform hover:-translate-y-2">
+                <div class="text-4xl mb-4">🎤</div>
+                <h3 class="text-xl font-bold mb-2">Voice Interactive</h3>
+                <p class="text-gray-400">Talk directly to your AI tutor using natural language with built-in voice
+                    recognition.</p>
+            </div>
+            <div
+                class="p-8 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-all transform hover:-translate-y-2">
+                <div class="text-4xl mb-4">📊</div>
+                <h3 class="text-xl font-bold mb-2">Visual Analytics</h3>
+                <p class="text-gray-400">Track your knowledge growth in real-time with beautiful data visualizations.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        // Anime.js smooth entrance
+        anime.timeline({ easing: 'easeOutExpo' })
+            .add({
+                targets: '#hero-headline .block',
+                translateY: [50, 0],
+                opacity: [0, 1],
+                duration: 1200,
+                delay: anime.stagger(200)
+            })
+            .add({
+                targets: '.hero-subtitle',
+                translateY: [20, 0],
+                opacity: [0, 1],
+                duration: 1000
+            }, '-=800')
+            .add({
+                targets: '.hero-buttons a',
+                scale: [0.9, 1],
+                opacity: [0, 1],
+                duration: 800,
+                delay: anime.stagger(150)
+            }, '-=800');
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,759 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex-grow flex flex-col p-4 sm:p-8 relative z-10" id="teacher-app">
+    <div class="max-w-7xl w-full mx-auto">
+        <header class="mb-8 mt-4 flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-400 to-orange-400">Educator Portal</h1>
+                <p class="text-gray-400 mt-2">Manage your classes, track performance in 3D, and deploy AI quizzes.</p>
+            </div>
+        </header>
+
+        <!-- 3D Graph Row -->
+        <!-- <div class="glass-card rounded-2xl p-6 mb-4 relative border-t border-white/10 h-96">
+            <h3 class="text-xl font-bold mb-4 text-white">Student Progress Topology</h3>
+            <div id="plotly-container" class="w-full h-full absolute inset-0 pt-16 pb-4 px-4 bg-transparent"></div>
+        </div> -->
+
+        <!-- Per-Student Performance Bar Graph -->
+        <!-- <div class="glass-card rounded-2xl p-6 mb-8 border-t border-white/10 h-72">
+            <h3 class="text-lg font-semibold mb-3 text-white">Performance by Student</h3>
+            <p class="text-xs text-gray-400 mb-3">
+                Average quiz score across all topics for each student.
+            </p>
+            <div class="relative w-full h-full">
+                <canvas id="studentBarChart"></canvas>
+            </div>
+        </div> -->
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Quiz Generator Box -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10">
+                <h3 class="text-xl font-bold mb-4 text-white flex gap-2 items-center">
+                    <span>⚡</span> AI Quiz Generator
+                </h3>
+                <p class="text-gray-400 text-sm mb-4">
+                    Generate quizzes from uploaded notes or from a topic name. Fine-tune duration, difficulty, and question count, then publish using a unique 8-digit code.
+                </p>
+
+                <!-- Mode Toggle -->
+                <div class="inline-flex mb-4 rounded-full bg-white/5 p-1 text-xs font-medium">
+                    <button type="button"
+                            @click="quizForm.mode = 'notes'"
+                            :class="quizForm.mode === 'notes' ? 'bg-orange-500 text-white' : 'text-gray-300'"
+                            class="px-3 py-1 rounded-full transition">
+                        From Notes
+                    </button>
+                    <button type="button"
+                            @click="quizForm.mode = 'topic'"
+                            :class="quizForm.mode === 'topic' ? 'bg-orange-500 text-white' : 'text-gray-300'"
+                            class="px-3 py-1 rounded-full transition">
+                        From Topic Name
+                    </button>
+                </div>
+                
+                <form @submit.prevent="generateQuiz" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Quiz Title</label>
+                        <input v-model="quizForm.title" type="text" required placeholder="E.g. Operating Systems – Deadlocks Assessment" class="w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:border-red-500 focus:ring-red-500 text-sm"/>
+                    </div>
+
+                    <div v-if="quizForm.mode === 'topic'">
+                        <label class="block text-sm font-medium text-gray-300 mb-1">Topic Name</label>
+                        <input v-model="quizForm.topic" type="text" required placeholder="E.g. Operating System – Deadlock" class="w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:border-red-500 focus:ring-red-500 text-sm"/>
+                    </div>
+
+                    <div class="flex gap-4" v-if="quizForm.mode === 'notes'">
+                        <div class="flex-grow">
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Upload Source Notes (PDF)</label>
+                            <input type="file" ref="quizFiles" accept=".pdf,.txt" class="w-full px-3 py-1.5 rounded-md bg-white/5 border border-white/10 text-white text-sm file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:bg-gray-700 file:text-white hover:file:bg-gray-600"/>
+                        </div>
+                        <div class="w-32">
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Duration (mins)</label>
+                            <input v-model.number="quizForm.timer" type="number" min="1" max="180" required class="w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white focus:border-red-500 focus:ring-red-500 text-sm"/>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Questions</label>
+                            <input v-model.number="quizForm.num_questions" type="number" min="1" max="50" class="w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white focus:border-red-500 focus:ring-red-500 text-sm"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Difficulty</label>
+                            <select v-model="quizForm.difficulty" class="w-full px-3 py-2 rounded-md bg-white/5 border border-white/10 text-white text-sm focus:border-red-500 focus:ring-red-500">
+                                <option value="easy">Easy</option>
+                                <option value="medium">Medium</option>
+                                <option value="hard">Hard</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Question Types</label>
+                            <div class="flex flex-wrap gap-1 text-xs">
+                                <button type="button"
+                                        @click="toggleQuestionType('mcq')"
+                                        :class="quizForm.question_types.includes('mcq') ? 'bg-white/80 text-gray-900' : 'bg-white/5 text-gray-300'"
+                                        class="px-2 py-1 rounded-full border border-white/10">
+                                    MCQ
+                                </button>
+                                <button type="button"
+                                        @click="toggleQuestionType('true_false')"
+                                        :class="quizForm.question_types.includes('true_false') ? 'bg-white/80 text-gray-900' : 'bg-white/5 text-gray-300'"
+                                        class="px-2 py-1 rounded-full border border-white/10">
+                                    True / False
+                                </button>
+                                <button type="button"
+                                        @click="toggleQuestionType('short_answer')"
+                                        :class="quizForm.question_types.includes('short_answer') ? 'bg-white/80 text-gray-900' : 'bg-white/5 text-gray-300'"
+                                        class="px-2 py-1 rounded-full border border-white/10">
+                                    Short Answer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" :disabled="loadingQuiz" class="w-full mt-2 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium shadow-lg transition flex justify-center items-center gap-2 disabled:opacity-50">
+                        <span v-if="loadingQuiz" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        [[ loadingQuiz ? 'Generating Quiz...' : 'Generate Quiz Draft' ]]
+                    </button>
+                    
+                    <div v-if="quizMessage" :class="quizError ? 'text-red-400' : 'text-green-400'" class="text-sm text-center mt-2">
+                        [[ quizMessage ]]
+                    </div>
+                </form>
+            </div>
+
+            <!-- Feedback / Results Box -->
+            <div class="glass-card rounded-2xl p-6 border-t border-white/10 flex flex-col h-[420px]">
+                <h3 class="text-xl font-bold mb-4 text-white flex items-center gap-2">
+                    <span>📋</span> Gradebook & Quick Feedback
+                </h3>
+                
+                <div class="flex-grow overflow-y-auto pr-2 space-y-4">
+                    <div v-for="res in results" :key="res.id" class="p-4 rounded-xl bg-white/5 border border-white/10">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <span class="text-white font-medium text-sm">[[ res.student_name ]]</span>
+                                <p class="text-gray-400 text-xs">[[ res.quiz_title ]] - [[ res.submitted_at ]]</p>
+                            </div>
+                            <div class="px-2 py-1 rounded bg-gray-800 text-sm" :class="res.score/res.total >= 0.7 ? 'text-green-400' : 'text-red-400'">
+                                [[ res.score ]] / [[ res.total ]]
+                            </div>
+                        </div>
+                        
+                        <p v-if="res.teacher_feedback" class="text-xs text-gray-300 mt-1 italic">
+                            Your feedback: "[[ res.teacher_feedback ]]"
+                        </p>
+
+                        <!-- Proctoring Violations -->
+                        <div v-if="res.violation_count > 0" class="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                            <p class="text-[10px] font-bold text-red-400 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                <span>⚠️</span> AI Proctoring Report ([[ res.violation_count ]] Violations)
+                            </p>
+                            <ul class="list-disc list-inside text-xs text-red-300/80 space-y-0.5 ml-1">
+                                <li v-for="(log, idx) in res.violation_logs" :key="idx">
+                                    [[ log ]]
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <div v-if="res.feedback" class="text-sm text-gray-300 italic mb-2">
+                            "[[ res.feedback ]]"
+                        </div>
+                        
+                        <div v-else class="flex gap-2 mt-3">
+                            <input v-model="res.newFeedback" type="text" placeholder="Type quick feedback..." class="flex-grow px-2 py-1.5 rounded-md bg-white/10 border border-white/5 text-white text-xs"/>
+                            <button @click="submitFeedback(res)" :disabled="!res.newFeedback" class="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs disabled:opacity-50 transition">
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div v-if="results.length === 0" class="text-gray-500 text-sm text-center py-8">
+                        No quiz results submitted yet.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quiz Management & Reports -->
+        <div class="glass-card rounded-2xl p-6 border-t border-white/10">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                    <span>🧪</span> Quiz Management & Reports
+                </h3>
+                <p class="text-xs text-gray-400">
+                    Review generated quizzes, edit questions, publish via quiz code, and export reports.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Quiz list -->
+                <div class="space-y-3 max-h-80 overflow-y-auto pr-2">
+                    <div v-if="loadingQuizzes" class="text-sm text-gray-400">
+                        Loading quizzes...
+                    </div>
+                    <div v-for="quiz in teacherQuizzes" :key="quiz.id"
+                         @click="openQuizDetail(quiz)"
+                         class="p-3 rounded-xl border border-white/10 bg-white/5 cursor-pointer hover:bg-white/10 transition flex items-start justify-between">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <p class="text-sm font-semibold text-white">[[ quiz.title ]]</p>
+                                <span v-if="quiz.is_active" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">Active</span>
+                                <span v-else class="text-[10px] px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-300 border border-gray-400/40">Draft</span>
+                            </div>
+                            <p class="text-[11px] text-gray-400 mt-1">
+                                Code: <span class="font-mono">[[ quiz.code || '—' ]]</span> · [[ quiz.num_questions || 0 ]] Q · [[ quiz.timer_minutes ]] mins
+                            </p>
+                            <p class="text-[11px] text-gray-500">
+                                [[ quiz.topic || 'General' ]] · [[ quiz.difficulty || 'medium' ]] · [[ quiz.attempt_count ]] attempts
+                            </p>
+                        </div>
+                    </div>
+                    <div v-if="!loadingQuizzes && teacherQuizzes.length === 0" class="text-xs text-gray-500">
+                        No quizzes yet. Generate a quiz above to see it here.
+                    </div>
+                </div>
+
+                <!-- Quiz editor -->
+                <div class="lg:col-span-2 space-y-4" v-if="selectedQuiz">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-white">Editing: [[ selectedQuiz.title ]]</p>
+                            <p class="text-[11px] text-gray-400">
+                                Code: <span class="font-mono">[[ selectedQuiz.code ]]</span> · Created [[ selectedQuiz.created_at ]]
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button"
+                                    @click="togglePublishSelectedQuiz"
+                                    :disabled="publishingQuiz"
+                                    class="px-3 py-1.5 rounded-full text-xs font-medium border border-white/20"
+                                    :class="selectedQuiz.is_active ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-gray-700 text-white hover:bg-gray-600'">
+                                <span v-if="publishingQuiz" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full inline-block align-middle animate-spin mr-1"></span>
+                                [[ selectedQuiz.is_active ? 'Unpublish Quiz' : 'Publish Quiz' ]]
+                            </button>
+                            <button type="button"
+                                    @click="downloadCsv(selectedQuiz.id)"
+                                    class="px-3 py-1.5 rounded-full text-xs font-medium bg-white/10 text-white hover:bg-white/20 border border-white/20">
+                                Download CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                        <div>
+                            <label class="block text-gray-300 mb-1">Title</label>
+                            <input v-model="selectedQuiz.title" type="text" class="w-full px-2 py-1.5 rounded-md bg-white/5 border border-white/10 text-white"/>
+                        </div>
+                        <div>
+                            <label class="block text-gray-300 mb-1">Topic</label>
+                            <input v-model="selectedQuiz.topic" type="text" class="w-full px-2 py-1.5 rounded-md bg-white/5 border border-white/10 text-white"/>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-gray-300 mb-1">Duration (mins)</label>
+                                <input v-model.number="selectedQuiz.timer_minutes" type="number" min="1" max="180" class="w-full px-2 py-1.5 rounded-md bg-white/5 border border-white/10 text-white"/>
+                            </div>
+                            <div>
+                                <label class="block text-gray-300 mb-1">Difficulty</label>
+                                <select v-model="selectedQuiz.difficulty" class="w-full px-2 py-1.5 rounded-md bg-white/5 border border-white/10 text-white">
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="max-h-64 overflow-y-auto pr-2 space-y-3 mt-2">
+                        <div v-for="(q, idx) in selectedQuiz.questions" :key="idx" class="p-3 rounded-xl bg-white/5 border border-white/10">
+                            <div class="flex items-center justify-between mb-2">
+                                <p class="text-xs font-semibold text-white">Q[[ idx + 1 ]]</p>
+                                <span class="text-[10px] text-gray-400">[[ q.topic || 'General' ]] · [[ q.difficulty || selectedQuiz.difficulty ]]</span>
+                            </div>
+                            <textarea v-model="q.question" rows="2" class="w-full text-xs px-2 py-1.5 rounded-md bg-black/20 border border-white/10 text-white mb-2"></textarea>
+                            <div class="space-y-1">
+                                <div v-for="(opt, oIdx) in q.options" :key="oIdx" class="flex items-center gap-2">
+                                    <input type="radio" :name="'correct-' + idx" :value="oIdx" v-model.number="q.correct_index" class="text-emerald-500 focus:ring-emerald-500">
+                                    <input v-model="q.options[oIdx]" type="text" class="flex-1 px-2 py-1 rounded-md bg-black/20 border border-white/10 text-xs text-white"/>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center mt-2 text-[11px] text-gray-400">
+                                <button type="button" @click="addOption(idx)" class="px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10">
+                                    + Add Option
+                                </button>
+                                <button type="button" @click="removeQuestion(idx)" class="px-2 py-1 rounded-full bg-red-600/80 hover:bg-red-600 text-white">
+                                    Remove Question
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center mt-3">
+                        <button type="button" @click="addQuestion" class="px-3 py-1.5 rounded-full text-xs font-medium bg-white/10 hover:bg-white/20 text-white border border-white/20">
+                            + Add Question
+                        </button>
+                        <button type="button"
+                                @click="saveSelectedQuiz"
+                                :disabled="savingQuiz"
+                                class="px-4 py-1.5 rounded-full text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 disabled:opacity-50">
+                            <span v-if="savingQuiz" class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Empty state when no quiz selected -->
+                <div class="lg:col-span-2 text-xs text-gray-500" v-else>
+                    Select a quiz from the left to edit questions, publish it, and view detailed reports.
+                </div>
+            </div>
+        </div>
+
+        <!-- Student Badge Analytics -->
+        <div class="glass-card rounded-2xl p-6 mt-8 border-t-4 border-emerald-500">
+            <h3 class="text-xl font-bold mb-4 text-white flex items-center gap-2">
+                    <span>🏆</span> Student Badge Analytics
+            </h3>
+            <p class="text-xs text-gray-400 mb-6">
+                Monitor platform engagement by viewing which students have unlocked gamification milestones.
+            </p>
+
+            <div v-if="loadingBadges" class="text-sm text-gray-400">Loading badge data...</div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div v-for="badge in badgeAnalytics" :key="badge.badge_id" class="p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition flex flex-col h-full">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="text-3xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">[[ badge.icon ]]</div>
+                        <div>
+                            <h4 class="font-bold text-white text-sm">[[ badge.name ]]</h4>
+                            <p class="text-[10px] text-emerald-400 font-medium">[[ badge.category ]]</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400 mb-4 flex-grow">[[ badge.description ]]</p>
+                    
+                    <div class="bg-black/30 rounded-lg p-3">
+                        <p class="text-[10px] text-gray-500 font-semibold mb-2 uppercase tracking-wide">
+                            Earned By ([[ badge.students.length ]])
+                        </p>
+                        <div class="flex flex-wrap gap-1.5" v-if="badge.students.length > 0">
+                            <span v-for="student in badge.students" :key="student" class="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                [[ student ]]
+                            </span>
+                        </div>
+                        <div v-else class="text-xs text-gray-600 italic">No students yet</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Load Plotly completely standalone -->
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<script>
+const { createApp, ref, reactive, onMounted } = Vue;
+
+const TeacherApp = {
+    compilerOptions: { delimiters: ['[[', ']]'] },
+    setup() {
+        const results = ref([]);
+        const studentProgress = ref([]);
+        const quizForm = reactive({
+            title: '',
+            timer: 15,
+            mode: 'notes',
+            topic: '',
+            num_questions: 5,
+            difficulty: 'medium',
+            question_types: ['mcq']
+        });
+        const loadingQuiz = ref(false);
+        const quizMessage = ref('');
+        const quizError = ref(false);
+        const quizFiles = ref(null);
+
+        const teacherQuizzes = ref([]);
+        const loadingQuizzes = ref(false);
+        const selectedQuiz = ref(null);
+        const savingQuiz = ref(false);
+        const publishingQuiz = ref(false);
+
+        const badgeAnalytics = ref([]);
+        const loadingBadges = ref(false);
+
+        const fetchProgress = async () => {
+            try {
+                const res = await axios.get('/teacher/api/students-progress');
+                if(res.data.success) {
+                    studentProgress.value = res.data.data;
+                    render3DGraph();
+                    renderStudentBarChart();
+                }
+            } catch (err) {
+                console.error("Failed to load progress data", err);
+            }
+        };
+        
+        const fetchResults = async () => {
+             try {
+                const res = await axios.get('/teacher/api/results');
+                if(res.data.success) {
+                    results.value = res.data.data.map(r => ({ ...r, newFeedback: '' }));
+                }
+            } catch (err) {
+                console.error("Failed to load results", err);
+            }
+        };
+
+        const fetchTeacherQuizzes = async () => {
+            loadingQuizzes.value = true;
+            try {
+                const res = await axios.get('/teacher/api/quizzes');
+                if (res.data.success) {
+                    teacherQuizzes.value = res.data.data;
+                }
+            } catch (err) {
+                console.error("Failed to load teacher quizzes", err);
+            } finally {
+                loadingQuizzes.value = false;
+            }
+        };
+
+        const fetchBadgeAnalytics = async () => {
+            loadingBadges.value = true;
+            try {
+                const res = await axios.get('/teacher/api/badges/analytics');
+                if (res.data.success) {
+                    badgeAnalytics.value = res.data.data;
+                }
+            } catch (err) {
+                console.error("Failed to load badge analytics", err);
+            } finally {
+                loadingBadges.value = false;
+            }
+        };
+
+        const render3DGraph = () => {
+            const data = studentProgress.value;
+            if (data.length === 0) return;
+
+            // X = Topic str, Y = Score int, Z = Student str
+            // We need to map strings to numeric arrays for generic 3D scatter, then use text for tooltips
+            const topics = [...new Set(data.map(d => d.topic))];
+            const students = [...new Set(data.map(d => d.student_name))];
+            
+            const x = data.map(d => topics.indexOf(d.topic));
+            const y = data.map(d => students.indexOf(d.student_name));
+            const z = data.map(d => d.score);
+            const textLabels = data.map(d => `Student: ${d.student_name}<br>Topic: ${d.topic}<br>Score: ${d.score}`);
+
+            var trace1 = {
+                x: x,
+                y: y,
+                z: z,
+                mode: 'markers',
+                marker: {
+                    size: 10,
+                    color: z,
+                    colorscale: 'Viridis',
+                    opacity: 0.8
+                },
+                text: textLabels,
+                hoverinfo: 'text',
+                type: 'scatter3d'
+            };
+
+            var layout = {
+                margin: { l: 0, r: 0, b: 0, t: 0 },
+                scene: {
+                    xaxis: { title: 'Topics', ticktext: topics, tickvals: topics.map((_, i) => i),  color: 'white', gridcolor: '#444' },
+                    yaxis: { title: 'Students', ticktext: students, tickvals: students.map((_, i) => i), color: 'white', gridcolor: '#444' },
+                    zaxis: { title: 'Score', color: 'white', gridcolor: '#444'},
+                    bgcolor: 'rgba(0,0,0,0)'
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: 'white' }
+            };
+
+            Plotly.newPlot('plotly-container', [trace1], layout, {responsive: true, displayModeBar: false});
+        };
+
+        const renderStudentBarChart = () => {
+            const data = studentProgress.value;
+            if (!data.length) return;
+
+            const aggregated = {};
+            data.forEach(d => {
+                if (!aggregated[d.student_name]) {
+                    aggregated[d.student_name] = { total: 0, count: 0 };
+                }
+                aggregated[d.student_name].total += d.score;
+                aggregated[d.student_name].count += 1;
+            });
+
+            const labels = Object.keys(aggregated);
+            const scores = labels.map(name => {
+                const entry = aggregated[name];
+                return entry.count ? Math.round(entry.total / entry.count) : 0;
+            });
+
+            const ctx = document.getElementById('studentBarChart');
+            if (!ctx) return;
+
+            // Apply dark theme defaults for Chart.js
+            Chart.defaults.color = 'rgba(255, 255, 255, 0.7)';
+            Chart.defaults.scale.grid.color = 'rgba(255, 255, 255, 0.1)';
+
+            if (window.teacherStudentBarChartInstance) {
+                window.teacherStudentBarChartInstance.destroy();
+            }
+
+            window.teacherStudentBarChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Average Score (%)',
+                        data: scores,
+                        backgroundColor: 'rgba(248, 113, 113, 0.7)',
+                        borderColor: 'rgba(248, 113, 113, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.parsed.y} %`
+                            }
+                        }
+                    }
+                }
+            });
+        };
+
+        const toggleQuestionType = (type) => {
+            const idx = quizForm.question_types.indexOf(type);
+            if (idx >= 0) {
+                if (quizForm.question_types.length > 1) {
+                    quizForm.question_types.splice(idx, 1);
+                }
+            } else {
+                quizForm.question_types.push(type);
+            }
+        };
+
+        const generateQuiz = async () => {
+            const files = quizFiles.value?.files;
+            if (quizForm.mode === 'notes' && (!files || files.length === 0)) {
+                quizError.value = true;
+                quizMessage.value = "Please upload at least one PDF when using 'From Notes' mode.";
+                return;
+            }
+
+            loadingQuiz.value = true;
+            quizMessage.value = '';
+            
+            const formData = new FormData();
+            if (quizForm.mode === 'notes' && files && files.length > 0) {
+                formData.append('files', files[0]);
+            }
+            formData.append('mode', quizForm.mode);
+            formData.append('title', quizForm.title);
+            formData.append('timer', quizForm.timer);
+            formData.append('topic', quizForm.topic || '');
+            formData.append('num_questions', quizForm.num_questions || 5);
+            formData.append('difficulty', quizForm.difficulty || 'medium');
+            formData.append('question_types', quizForm.question_types.join(','));
+
+            try {
+                const res = await axios.post('/teacher/api/generate-quiz', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                quizError.value = !res.data.success;
+                quizMessage.value = res.data.message;
+                
+                if (res.data.success) {
+                    quizForm.title = '';
+                    quizForm.topic = '';
+                    quizForm.timer = 15;
+                    quizForm.num_questions = 5;
+                    quizForm.difficulty = 'medium';
+                    quizForm.question_types = ['mcq'];
+                    if (quizFiles.value) {
+                        quizFiles.value.value = '';
+                    }
+                    fetchTeacherQuizzes();
+                }
+            } catch (err) {
+                quizError.value = true;
+                quizMessage.value = err?.response?.data?.message || "Failed to generate quiz. Server returned error.";
+                console.error(err);
+            } finally {
+                loadingQuiz.value = false;
+            }
+        };
+
+        const submitFeedback = async (resObj) => {
+            try {
+                const res = await axios.post(`/teacher/api/results/${resObj.id}/feedback`, {
+                    feedback: resObj.newFeedback
+                });
+                if (res.data.success) {
+                    resObj.feedback = resObj.newFeedback;
+                }
+            } catch (err) {
+                console.error("Failed to submit feedback", err);
+            }
+        };
+
+        const openQuizDetail = async (quizMeta) => {
+            try {
+                const res = await axios.get(`/teacher/api/quizzes/${quizMeta.id}`);
+                if (res.data.success) {
+                    selectedQuiz.value = res.data.quiz;
+                }
+            } catch (err) {
+                console.error("Failed to load quiz detail", err);
+            }
+        };
+
+        const addQuestion = () => {
+            if (!selectedQuiz.value) return;
+            selectedQuiz.value.questions.push({
+                question: '',
+                options: ['', ''],
+                correct_index: 0,
+                type: 'mcq',
+                topic: selectedQuiz.value.topic || '',
+                difficulty: selectedQuiz.value.difficulty || 'medium'
+            });
+        };
+
+        const removeQuestion = (index) => {
+            if (!selectedQuiz.value) return;
+            selectedQuiz.value.questions.splice(index, 1);
+        };
+
+        const addOption = (questionIndex) => {
+            if (!selectedQuiz.value) return;
+            const q = selectedQuiz.value.questions[questionIndex];
+            if (!q.options) q.options = [];
+            q.options.push('');
+        };
+
+        const saveSelectedQuiz = async () => {
+            if (!selectedQuiz.value) return;
+            savingQuiz.value = true;
+            try {
+                const payload = {
+                    title: selectedQuiz.value.title,
+                    timer_minutes: selectedQuiz.value.timer_minutes,
+                    difficulty: selectedQuiz.value.difficulty,
+                    topic: selectedQuiz.value.topic,
+                    questions: selectedQuiz.value.questions
+                };
+                const res = await axios.post(`/teacher/api/quizzes/${selectedQuiz.value.id}/update`, payload);
+                if (!res.data.success) {
+                    console.warn("Quiz update response:", res.data);
+                } else {
+                    fetchTeacherQuizzes();
+                }
+            } catch (err) {
+                console.error("Failed to save quiz", err);
+            } finally {
+                savingQuiz.value = false;
+            }
+        };
+
+        const togglePublishSelectedQuiz = async () => {
+            if (!selectedQuiz.value) return;
+            publishingQuiz.value = true;
+            try {
+                const targetState = !selectedQuiz.value.is_active;
+                const res = await axios.post(`/teacher/api/quizzes/${selectedQuiz.value.id}/publish`, {
+                    is_active: targetState
+                });
+                if (res.data.success) {
+                    selectedQuiz.value.is_active = res.data.quiz.is_active;
+                    selectedQuiz.value.code = res.data.quiz.code;
+                    fetchTeacherQuizzes();
+                }
+            } catch (err) {
+                console.error("Failed to publish/unpublish quiz", err);
+            } finally {
+                publishingQuiz.value = false;
+            }
+        };
+
+        const downloadCsv = (quizId) => {
+            window.location = `/teacher/api/quizzes/${quizId}/report.csv`;
+        };
+
+        onMounted(() => {
+            fetchProgress();
+            fetchResults();
+            fetchTeacherQuizzes();
+            fetchBadgeAnalytics();
+            
+            // Re-render plotly on window resize inside 3d dom element
+            window.addEventListener('resize', () => {
+                if(document.getElementById('plotly-container')) {
+                    Plotly.Plots.resize(document.getElementById('plotly-container'));
+                }
+            });
+        });
+
+        return {
+            results,
+            studentProgress,
+            quizForm,
+            loadingQuiz,
+            quizMessage,
+            quizError,
+            quizFiles,
+            teacherQuizzes,
+            loadingQuizzes,
+            selectedQuiz,
+            savingQuiz,
+            publishingQuiz,
+            generateQuiz,
+            submitFeedback,
+            toggleQuestionType,
+            openQuizDetail,
+            addQuestion,
+            removeQuestion,
+            addOption,
+            saveSelectedQuiz,
+            togglePublishSelectedQuiz,
+            downloadCsv,
+            badgeAnalytics,
+            loadingBadges
+        }
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('teacher-app')) {
+        createApp(TeacherApp).mount('#teacher-app');
+    }
+});
+</script>
+{% endblock %}
