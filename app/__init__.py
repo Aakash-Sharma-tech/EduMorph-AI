@@ -32,18 +32,21 @@ def create_app(config_class=Config):
     # Ensure DB schema is up-to-date even if app.db already exists.
     # (create_all does not add new columns to existing tables.)
     with app.app_context():
-        db.create_all()
         try:
-            from app.services.db_migrations import ensure_schema
-            ensure_schema(db)
-        except Exception as e:
-            print(f"Schema migration warning: {e}")
+            db.create_all()
+            try:
+                from app.services.db_migrations import ensure_schema
+                ensure_schema(db)
+            except Exception as e:
+                print(f"Schema migration warning: {e}")
 
-        # Seed predefined gamification badges in production
-        try:
-            from app.services.gamification_service import seed_badges
-            seed_badges()
+            # Seed predefined gamification badges in production
+            try:
+                from app.services.gamification_service import seed_badges
+                seed_badges()
+            except Exception as e:
+                print(f"Warning: Failed to seed badges: {e}")
         except Exception as e:
-            print(f"Warning: Failed to seed badges: {e}")
+            print(f"Database initialization error: {e}")
 
     return app
