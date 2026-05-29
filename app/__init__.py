@@ -39,4 +39,11 @@ def create_app(config_class=Config):
         except Exception as e:
             print(f"Schema migration warning: {e}")
 
+        # Seed predefined gamification badges in production
+        try:
+            from app.services.gamification_service import seed_badges
+            seed_badges()
+        except Exception as e:
+            print(f"Warning: Failed to seed badges: {e}")
+
     return app
